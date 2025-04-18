@@ -7,21 +7,15 @@ This is an implicit unstructured-grid Euler solver (f90, serial, tetra only), wr
 
 For the grid format, see [edu2d3d_unstructured_grid_format](https://github.com/idolikecfd/edu2d3d_unstructured_grid_format).
 
+
 ## Compile edu3d_euler
 
-```bash
-echo "Compiling edu3d_euler......"
-
-# This is a debug version (more checks but slower).
-cd executable_debug
-make
-cd ../
-
-# This is an optimized version to be used in the tests below.
-cd executable_optimized
-make
-cd ../
 ```
+mkdir build
+cd build
+cmake ..
+```
+
 
 ## Run a truncation error analysis
 
