@@ -1,0 +1,45 @@
+##########################################################
+# Makefile for EDU2D-CCFV-Euler-EXPLCT
+##########################################################
+ PROGRAM = edu3d_euler
+##########################################################
+# Suffix Rule for f90
+# Note: use "gfortran -O2" for best performance, but
+#       don't use it until you're sure bugs are removed.
+##########################################################
+.SUFFIXES : .o .f90
+.f90.o:
+	gfortran -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  -fbacktrace -fall-intrinsics -c $<
+##########################################################
+SDIR = ../src_files
+OBCTS =	$(SDIR)/edu3d_euler_input_parameter.o\
+	$(SDIR)/edu3d_derivative_data_df5.o\
+	$(SDIR)/edu3d_flux_functions_ddt.o\
+	$(SDIR)/edu3d_euler_data_module.o\
+	$(SDIR)/edu3d_euler_gradients.o\
+	$(SDIR)/edu3d_euler_nceb_data.o\
+	$(SDIR)/edu3d_euler_eqns.o\
+	$(SDIR)/edu3d_euler_fluxjac_interface.o\
+	$(SDIR)/edu3d_euler_bc_states.o\
+	$(SDIR)/edu3d_euler_residual.o\
+	$(SDIR)/edu3d_euler_jacobian.o\
+	$(SDIR)/edu3d_euler_linear_solver.o\
+	$(SDIR)/edu3d_gcr.o\
+	$(SDIR)/edu3d_euler_steady_solver.o\
+	$(SDIR)/edu3d_euler_main.o\
+##########################################################
+# Make executable "mg"
+# Note: use "gfortran -O2" for best performance, but
+#       don't use it until you're sure bugs are removed.
+##########################################################
+$(PROGRAM): $(OBCTS)
+	gfortran -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  -fbacktrace -fall-intrinsics -o $@ $(OBCTS)
+#
+SDIR = .
+##########################################################
+# Clean up
+##########################################################
+clean:
+	rm -f *.o
+	rm -f *.mod
+	rm -f edu3d_euler

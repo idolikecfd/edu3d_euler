@@ -1,0 +1,27 @@
+&input_parameters
+
+               project = "tetgrid"
+
+           test_mms_te = T
+
+         inviscid_flux = "roe"
+         inviscid_jac  = "roe"
+
+
+! 2nd-order edge-based scheme (2nd-order with any kappa).
+                 kappa = 0.0
+      mms_s_quadrature = "point"
+
+! 3rd-order UMUSCL-SSQ scheme on regular tetra: kappa must be 1/2.
+!                 kappa = 0.5
+!      mms_s_quadrature = "kappa_s"
+!               kappa_s = 0.3
+
+        accuracy_order = 2
+      lsq_weight_power = 0.25
+
+     ugrid_unformatted = F
+   generate_tec_file_b = T
+   generate_tec_file_v = T
+
+/

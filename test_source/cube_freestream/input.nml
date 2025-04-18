@@ -1,0 +1,31 @@
+&input_parameters
+
+               project = "tetgrid"
+
+                 M_inf = 0.5
+                   aoa = 0.0
+         inviscid_flux = "roe"
+         inviscid_jac  = "roe"
+
+        accuracy_order = 2
+      lsq_weight_power = 0.25
+
+       perturb_initial = 1
+           solver_type = "jfnk"
+      solver_tolerance = 1.0e-10
+        solver_max_itr = 100
+
+    gcr_projection     = 15
+    gcr_mu             = 0.01
+
+    lrelax_scheme      = "gs"
+    lrelax_sweeps      = 100
+    lrelax_tolerance   = 0.1
+
+                   CFL = 1.0e+15
+
+     ugrid_unformatted = F
+   generate_tec_file_b = T
+   generate_tec_file_v = F
+
+/

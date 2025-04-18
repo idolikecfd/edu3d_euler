@@ -1,0 +1,19 @@
+#
+
+
+gfortran edu3d_tetgrid_cube_v4.f90
+
+./a.out
+8,8,8
+mv tetgrid.ugrid tetgrid_08x08x08.ugrid
+
+
+./a.out
+16,16,16
+mv tetgrid.ugrid tetgrid_16x16x16.ugrid
+
+
+./a.out
+32,32,32
+mv tetgrid.ugrid tetgrid_32x32x32.ugrid
+

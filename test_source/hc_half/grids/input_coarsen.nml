@@ -1,0 +1,12 @@
+&input_parameters
+                         project = 'hc_tetra'
+                       tet2prism = F
+          ugrid_file_unformatted = F
+              k_file_unformatted = T
+            rmp_file_unformatted = T
+        prolong_file_unformatted = T
+             generate_tec_file_b = T
+           generate_tec_file_vol = F
+        generate_heff_vol_report = F
+/
+

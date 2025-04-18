@@ -1,0 +1,5 @@
+  3
+  1  "slip_wall"  !wing
+  2  "slip_wall"  !symmetery plane (Is slip wall BC OK?)
+  3  "freestream" !far field
+
