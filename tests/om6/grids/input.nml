@@ -4,7 +4,6 @@
                    target_y_plus = 1000.0                       !Target y-plus value
                       igrid_type = 2                            !1=prsm, 2=tets, 3=prsm/tets, 4=prsm/hex, 5=Strct
                     airfoil_type = 0                            !airfoil_type: =0 discrete airfoil data, =1 NACA00XX
-               airfoil_data_file = "om6_wing_section_sharp.dat" !Datafile for the discrete airfoil data ; not used if airfoil_type = 1
                               tr = 0.5625159852668158           !Taper ratio = (tip chord)/(root chord)
                             beta = 29.9990                      !Swept angle of LE line in degrees (not too large, please: e.g., < 40).
                          R_outer = 100                          !Distance to outer boundary (=radius of the outer hemisphere)

@@ -43,14 +43,14 @@
 
   real(p2), parameter :: pi = 3.141592653589793238_p2
 
-  integer             :: ix = 1, iy = 2, iz = 3
+  integer, parameter :: ix = 1, iy = 2, iz = 3
 
  !--------------------------------------------------------------------
  !--------------------------------------------------------------------
  ! file names
 
   character(80) :: filename_ugrid     ! input grid filename (.ugrid)
-  character(80) :: filename_bcmap     ! input bc   filename (.bcmap)
+  character(80) :: filename_mapbc     ! input bc   filename (.mapbc)
   character(80) :: filename_tecplot_b ! output tecplot boundary filename (.dat)
   character(80) :: filename_tecplot_v ! output tecplot volume   filename (.dat)
   character(80) :: filename_soln      ! output solution filename (.data)

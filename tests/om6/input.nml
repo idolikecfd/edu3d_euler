@@ -1,6 +1,6 @@
 &input_parameters
 
-               project = "om6_tet"
+               project = "wing_tetra.1"
 
                  M_inf = 0.5
                    aoa = 0.0

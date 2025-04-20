@@ -135,7 +135,7 @@
 
    write(*,*) " Invalid input: accuracy_order = ", accuracy_order
    write(*,*) "  accuracy_order must be 1 or 2. Stop..."
-   stop
+   stop 127
 
   endif
 
@@ -198,7 +198,7 @@
     write(*,*) " Invalid input for inviscid_flux = ", trim(inviscid_flux)
     write(*,*) " Choose roe, hll, rusanov, or rhll, and try again."
     write(*,*) " ... Stop."
-    stop
+    stop 127
 
    endif
 
@@ -396,7 +396,7 @@
     write(*,*) " Invalid input for inviscid_jac = ", trim(inviscid_jac)
     write(*,*) " Choose roe or rhll, and try again."
     write(*,*) " ... Stop."
-    stop
+    stop 127
 
    endif
 

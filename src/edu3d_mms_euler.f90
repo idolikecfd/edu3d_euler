@@ -756,7 +756,7 @@
   else
 
    write(*,*) " This cannot happen. Stop."
-   stop
+   stop 127
 
   endif
 

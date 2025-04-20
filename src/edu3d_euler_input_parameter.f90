@@ -139,7 +139,7 @@
   subroutine read_nml_input_parameters(namelist_file)
 
   implicit none
-  character(9), intent(in) :: namelist_file
+  character(*), intent(in) :: namelist_file
   integer :: os
 
   write(*,*) "**************************************************************"

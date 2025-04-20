@@ -386,7 +386,7 @@
      do k = 1, 5
       write(*,'(12(es8.1))') ( jac_diag(i, k,j), j=1,5 )
      end do
-     stop
+     stop 127
     endif
 
  !  Save the inverse in jac_dinv.
@@ -434,7 +434,7 @@
 
   if (.not. found) then
    write(*,*) " Neighbor not found.. Error. Stop"
-   stop
+   stop 127
   endif
 
  end function kth_nghbr

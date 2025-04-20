@@ -1,5 +1,3 @@
-! gfortran -O2  hcf_hc_v8p0.f90
-! ifort    -O2  hcf_hc_v8p0.f90
 !*******************************************************************************
 !
 !          --- Grid generation code for a hemisphere cylinder ---
@@ -284,6 +282,11 @@
   logical :: grid_statistics = .false.
 
 !----------------------------
+! Output file prefix (optional)
+!----------------------------
+  character(80) :: output_prefix = "hc"
+
+!----------------------------
 ! End of Default input values
 !----------------------------
 
@@ -310,7 +313,8 @@
            generate_line_file_cc, &
              generate_tec_file_b, &
              generate_tec_file_v, &
-             grid_statistics
+             grid_statistics,     &
+             output_prefix
 
  contains
 
@@ -320,7 +324,7 @@
   subroutine read_nml_input_parameters(namelist_file)
 
   implicit none
-  character(9), intent(in) :: namelist_file
+  character(*), intent(in) :: namelist_file
   integer :: os
 
   write(*,*) "**************************************************************"
@@ -328,10 +332,19 @@
   write(*,*)
 
   open(unit=10,file=namelist_file,form='formatted',status='old',iostat=os)
-  read(unit=10,nml=input_parameters)
-
-  write(*,nml=input_parameters) ! Print the namelist variables.
-  close(10)
+  if (os /= 0) then
+    write(*,*) "Warning: Could not open input file ", trim(namelist_file)
+    write(*,*) "Will use default values and command line arguments."
+  else
+    read(unit=10,nml=input_parameters,iostat=os)
+    if (os /= 0) then
+      write(*,*) "Warning: Error reading namelist from file ", trim(namelist_file)
+      write(*,*) "Will use default values and command line arguments."
+    else
+      write(*,nml=input_parameters) ! Print the namelist variables.
+    end if
+    close(10)
+  end if
 
   end subroutine read_nml_input_parameters
 
@@ -355,11 +368,27 @@
 ! Main program begins here.
 !*******************************************************************************
 !*******************************************************************************
- program hemisphere_cylinder_grid
+program hemisphere_cylinder_grid
 
  use input_parameter_module
 
  implicit none
+
+  ! Add the interface to the C functions
+  interface
+    subroutine edu3d_euler_debug_hooks_init() bind(C, name="edu3d_euler_debug_hooks_init")
+    end subroutine edu3d_euler_debug_hooks_init
+    
+    subroutine edu3d_euler_debug_hooks_cleanup() bind(C, name="edu3d_euler_debug_hooks_cleanup")
+    end subroutine edu3d_euler_debug_hooks_cleanup
+  end interface
+
+! --- CLI argument parsing ---
+integer :: n_args, i_arg
+character(256) :: arg, value_str
+logical :: show_help
+logical :: has_namelist_file
+character(256) :: namelist_file
 
 ! Parameters
   integer , parameter ::  kd = selected_int_kind(8)
@@ -514,6 +543,218 @@
   integer(kd)   :: nh0, nc0, nr0, cglevels, nk1, nk4, nk5
 
   logical, dimension(3) :: negative_volume_detected
+  
+  real(dp) :: temp_real
+  integer :: temp_int
+  logical :: temp_logical
+
+  ! Initialize debug hooks
+  call edu3d_euler_debug_hooks_init()
+
+  ! Nullify pointers, otherwise my_alloc_ndyz_ptr may attempt
+  ! to deallocate a dangling pointer.
+  nodes1 => NULL()
+  nodes2 => NULL()
+
+show_help = .false.
+has_namelist_file = .false.
+namelist_file = 'input.nml'
+
+! Process command line arguments
+n_args = command_argument_count()
+i_arg = 1
+
+do while (i_arg <= n_args)
+  call get_command_argument(i_arg, arg)
+  select case (trim(arg))
+  case ('-h', '--help')
+    show_help = .true.
+    i_arg = i_arg + 1
+  case ('-nml', '--namelist')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      has_namelist_file = .true.
+      namelist_file = trim(arg)
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('-o', '--output')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      output_prefix = trim(arg)
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--debug')
+    debug_mode = .true.
+    i_arg = i_arg + 1
+  case ('--reynolds', '-re')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_real
+      target_reynolds_number = temp_real
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--yplus', '-yp')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_real
+      target_y_plus = temp_real
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--grid-type', '-gt')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_int
+      igrid_type = temp_int
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--length', '-l')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_real
+      x2 = temp_real
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--radius', '-r')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_real
+      R_outer = temp_real
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--cylinder-nodes', '-cn')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_int
+      nnodes_cylinder_input = temp_int
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--tip-elements', '-te')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_int
+      nr_gs = temp_int
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--radial-elements', '-radel')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_int
+      nre = temp_int
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--domain', '-d')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, value_str)
+      read(value_str, *) temp_int
+      domain_cut = temp_int
+      i_arg = i_arg + 1
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--no-ugrid')
+    generate_ugrid_file = .false.
+    i_arg = i_arg + 1
+  case ('--no-p3d')
+    generate_p3d_ufmt_file = .false.
+    i_arg = i_arg + 1
+  case ('--no-k-file')
+    generate_k_file = .false.
+    i_arg = i_arg + 1
+  case ('--no-lines-nc')
+    generate_line_file_nc = .false.
+    i_arg = i_arg + 1
+  case ('--no-lines-cc')
+    generate_line_file_cc = .false.
+    i_arg = i_arg + 1
+  case ('--tecplot-boundary', '-tb')
+    generate_tec_file_b = .true.
+    i_arg = i_arg + 1
+  case ('--tecplot-volume', '-tv')
+    generate_tec_file_v = .true.
+    i_arg = i_arg + 1
+  case ('--statistics', '-s')
+    grid_statistics = .true.
+    i_arg = i_arg + 1
+  case default
+    write(*,*) 'Unrecognized command-line option: ', trim(arg)
+    write(*,*) 'Use --help for usage information'
+    stop
+  end select
+end do
+
+if (show_help) then
+  write(*,*) 'Usage: hcf_hc [options]'
+  write(*,*) 'Options:'
+  write(*,*) '  -h, --help                       Show this help message'
+  write(*,*) '  -nml, --namelist FILE            Specify input namelist file (default: input.nml)'
+  write(*,*) '  -o, --output PREFIX              Set output file prefix (default: hc)'
+  write(*,*) '  --debug                          Enable debug mode'
+  write(*,*) '  --reynolds, -re VALUE            Set Reynolds number (default: 1.0e7)'
+  write(*,*) '  --yplus, -yp VALUE               Set target y-plus (default: 10.0)'
+  write(*,*) '  --grid-type, -gt TYPE            Set grid type (1-5, default: 1)'
+  write(*,*) '                                    1 = Prismatic'
+  write(*,*) '                                    2 = Tetrahedral'
+  write(*,*) '                                    3 = Mixed - Prism in BL, Tetra outside'
+  write(*,*) '                                    4 = Mixed - Prism on hemisphere, Hexa on cylinder'
+  write(*,*) '                                    5 = Structured - Hexa with prisms at tip center'
+  write(*,*) '  --length, -l VALUE               Set hemisphere-cylinder length (default: 10.0)'
+  write(*,*) '  --radius, -r VALUE               Set outer boundary radius (default: 100.0)'
+  write(*,*) '  --cylinder-nodes, -cn VALUE      Set number of elements along cylinder (default: 24)'
+  write(*,*) '  --tip-elements, -te VALUE        Set number of elements across tip/2 (default: 8)'
+  write(*,*) '  --radial-elements, -re VALUE     Set number of elements in radial direction (default: 88)'
+  write(*,*) '  --domain, -d VALUE               Set domain type (1=full, 2=half, default: 1)'
+  write(*,*) '  --no-ugrid                       Disable generation of .ugrid file'
+  write(*,*) '  --no-p3d                         Disable generation of PLOT3D files'
+  write(*,*) '  --no-k-file                      Disable generation of K file'
+  write(*,*) '  --no-lines-nc                    Disable generation of node line files'
+  write(*,*) '  --no-lines-cc                    Disable generation of cell line files'
+  write(*,*) '  --tecplot-boundary, -tb          Enable generation of tecplot boundary file'
+  write(*,*) '  --tecplot-volume, -tv            Enable generation of tecplot volume file'
+  write(*,*) '  --statistics, -s                 Enable grid statistics computation'
+  stop
+endif
 
     ntrias     = 0
     nquads_hem = 0
@@ -543,9 +784,24 @@
 ! Read the input parameters, defined in the file named as 'input.nml'.
 !*******************************************************************************
 
-   write(*,*) "Reading the input file: input.nml..... "
+   write(*,*) "Reading the input file: ", trim(namelist_file), "..... "
    write(*,*)
-   call read_nml_input_parameters('input.nml')
+   call read_nml_input_parameters(namelist_file)
+   write(*,*)
+   
+   ! Display CLI overrides
+   write(*,*) "Command-line parameter settings:"
+   write(*,*) "  Output prefix           = ", trim(output_prefix)
+   write(*,*) "  Debug mode              = ", debug_mode
+   write(*,*) "  Reynolds number         = ", target_reynolds_number
+   write(*,*) "  Target y-plus           = ", target_y_plus
+   write(*,*) "  Grid type               = ", igrid_type
+   write(*,*) "  HC Length               = ", x2
+   write(*,*) "  Outer radius            = ", R_outer
+   write(*,*) "  Cylinder nodes          = ", nnodes_cylinder_input
+   write(*,*) "  Tip elements            = ", nr_gs
+   write(*,*) "  Radial elements         = ", nre
+   write(*,*) "  Domain (1=full, 2=half) = ", domain_cut
    write(*,*)
 
 !*******************************************************************************
@@ -661,29 +917,29 @@
 !--------------------------------------------------------------------
 ! Define file names
 
-   filename_mapbc       = 'hc_' // trim(elmtype) // '.1.mapbc'
-   filename_lines       = 'hc_' // trim(elmtype) // '.1.lines_fmt'
-   filename_lines_all   = 'hc_' // trim(elmtype) // '.1.lines_fmt_all'
-   filename_lines_c     = 'hc_' // trim(elmtype) // '.1.lines_fmt_cc'
-   filename_lines_c_all = 'hc_' // trim(elmtype) // '.1.lines_fmt_cc_all'
+   filename_mapbc       = trim(output_prefix) // '_' // trim(elmtype) // '.1.mapbc'
+   filename_lines       = trim(output_prefix) // '_' // trim(elmtype) // '.1.lines_fmt'
+   filename_lines_all   = trim(output_prefix) // '_' // trim(elmtype) // '.1.lines_fmt_all'
+   filename_lines_c     = trim(output_prefix) // '_' // trim(elmtype) // '.1.lines_fmt_cc'
+   filename_lines_c_all = trim(output_prefix) // '_' // trim(elmtype) // '.1.lines_fmt_cc_all'
    if ( ugrid_file_unformatted ) then
      if ( big_endian_io(9999) ) then
-      filename_ugrid  = 'hc_' // trim(elmtype) // '.1.b8.ugrid'
-      filename_p3d    = 'hc_' // trim(elmtype) // '.1.ufmt'
+      filename_ugrid  = trim(output_prefix) // '_' // trim(elmtype) // '.1.b8.ugrid'
+      filename_p3d    = trim(output_prefix) // '_' // trim(elmtype) // '.1.ufmt'
      else
-      filename_ugrid  = 'hc_' // trim(elmtype) // '.1.l8.ugrid'
-      filename_p3d    = 'hc_' // trim(elmtype) // '.1.ufmt'
+      filename_ugrid  = trim(output_prefix) // '_' // trim(elmtype) // '.1.l8.ugrid'
+      filename_p3d    = trim(output_prefix) // '_' // trim(elmtype) // '.1.ufmt'
      end if
    else
-      filename_ugrid  = 'hc_' // trim(elmtype) // '.1.ugrid'
-      filename_p3d    = 'hc_' // trim(elmtype) // '.1.p3d'
+      filename_ugrid  = trim(output_prefix) // '_' // trim(elmtype) // '.1.ugrid'
+      filename_p3d    = trim(output_prefix) // '_' // trim(elmtype) // '.1.p3d'
    endif
-   filename_nmf       = 'hc_' // trim(elmtype) // '.1.nmf'
-   filename_k         = 'hc_' // trim(elmtype) // '.1.k'
-   filename_tecplot_b = 'hc_' // trim(elmtype) // '.1.tec_bndary.dat'
-   filename_tecplot_v = 'hc_' // trim(elmtype) // '.1.tec_volume.dat'
+   filename_nmf       = trim(output_prefix) // '_' // trim(elmtype) // '.1.nmf'
+   filename_k         = trim(output_prefix) // '_' // trim(elmtype) // '.1.k'
+   filename_tecplot_b = trim(output_prefix) // '_' // trim(elmtype) // '.1.tec_bndary.dat'
+   filename_tecplot_v = trim(output_prefix) // '_' // trim(elmtype) // '.1.tec_volume.dat'
 
-   filename_stats     = 'hc_' // trim(elmtype) // '.1.stats.txt'
+   filename_stats     = trim(output_prefix) // '_' // trim(elmtype) // '.1.stats.txt'
 
 !--------------------------------------------------------------------
 ! Domain cut: Currently 2 choices. Full or half.
@@ -2189,9 +2445,6 @@
 !
 !*******************************************************************************
 
-
-
-
 !*******************************************************************************
 !
 ! Start of interior grid generation.
@@ -2753,7 +3006,6 @@
 ! At this point, all nodes have been generated.
 ! It is now a matter of how to connect them (i.e., type of elements).
 
-
 !*******************************************************************************
 ! 4.5. Let us rotate the grid by 90 degrees, so that a full and half domain
 !      grids will be compatible: the generated half grid matches the half of
@@ -2896,11 +3148,12 @@
    write(*,*) "   --- (3)Farfield"
    write(*,*) "   --- (4)y-symmetry"
 
-   write(16,'(a57)') "4       !Number of boundary parts (boundary conditions)"
-   write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
-   write(16,'(a46)') "2, 5051 !Outflow with back pressure in FUN3D"
-   write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
-   write(16,'(a22)') "4, 6662 !Y-Symmetry?"
+   ! Here we use boundaries types supported by EDU3D
+   write(16,*) '4                        ! Number of boundary parts (boundary conditions)'
+   write(16,*) '1, "slip_wall"           ! Viscous wall (4000 in FUN3D)'
+   write(16,*) '2, "outflow_subsonic_p0" ! Outflow with back pressure (5051 in FUN3D)'
+   write(16,*) '3, "freestream"          ! Characteristic-based inflow/outflow (5050 in FUN3D)'
+   write(16,*) '4, "slip_wall"           ! Y-Symmetry (6662 in FUN3D)'
 
  !Partial domain
   else
@@ -3397,6 +3650,8 @@
    write(*,*) " Finished. See ", trim(filename_stats)
   endif
 
+  ! Cleanup debug hooks
+  call edu3d_euler_debug_hooks_cleanup()
 
 contains 
 

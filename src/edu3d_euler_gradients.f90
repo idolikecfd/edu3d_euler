@@ -342,7 +342,7 @@
   write(*,*) "   m =  ", m
   write(*,*) "   n =  ", n
   write(*,*) " qr_factorization() not designed to solve such a problem... Stop. "
-  stop
+  stop 127
  endif
 
 !-------------------------------------------------------

@@ -144,7 +144,7 @@
 
     write(*,*) " Sorry, only 'gs' is available at the moment..."
     write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
-    stop
+    stop 127
 
    endif
  !---------------------------------------------------------

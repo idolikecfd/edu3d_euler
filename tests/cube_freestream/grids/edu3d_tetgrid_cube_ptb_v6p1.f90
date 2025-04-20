@@ -99,6 +99,17 @@
 ! By default, this program only writes a Tecplot file for the boudnary.
   logical :: write_tecplot_volume_file = .false.
 
+! File names with default values
+  character(len=255) :: ugrid_filename = "tetgrid.ugrid"
+  character(len=255) :: mapbc_filename = "tetgrid.mapbc"
+  character(len=255) :: tecplot_vol_filename = "tetgrid_tecplot.dat"
+  character(len=255) :: tecplot_bnd_filename = "tetgrid_boundary_tecplot.dat"
+  
+! Command-line argument handling
+  character(len=255) :: arg
+  integer :: i_arg, n_args, arg_status
+  logical :: show_help = .false.
+
 !*******************************************************************************
 ! Unit cube to be gridded.
 !        ______________  
@@ -117,18 +128,149 @@
 !
 !*******************************************************************************
 
+! Set default values first
+nx = 15 
+ny = 15
+nz = 15
+adjustable_parameter = 1.2_dp
+
+! Parse command-line arguments
+n_args = command_argument_count()
+
+i_arg = 1
+do while (i_arg <= n_args)
+  call get_command_argument(i_arg, arg, status=arg_status)
+  
+  if (arg_status /= 0) then
+    write(*,*) "Error reading command-line argument ", i_arg
+    stop
+  endif
+  
+  select case (trim(arg))
+    case ('-h', '--help')
+      show_help = .true.
+      exit
+      
+    case ('-u', '--ugrid')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, ugrid_filename)
+      else
+        write(*,*) "Error: Missing filename after ", trim(arg)
+        stop
+      endif
+      
+    case ('-m', '--mapbc')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, mapbc_filename)
+      else
+        write(*,*) "Error: Missing filename after ", trim(arg)
+        stop
+      endif
+      
+    case ('-tv', '--tecplot-volume')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, tecplot_vol_filename)
+      else
+        write(*,*) "Error: Missing filename after ", trim(arg)
+        stop
+      endif
+      
+    case ('-tb', '--tecplot-boundary')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, tecplot_bnd_filename)
+      else
+        write(*,*) "Error: Missing filename after ", trim(arg)
+        stop
+      endif
+      
+    case ('-vol', '--write-volume-file')
+      write_tecplot_volume_file = .true.
+      
+    case ('-nx')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, arg)
+        read(arg, *) nx
+      else
+        write(*,*) "Error: Missing value after ", trim(arg)
+        stop
+      endif
+      
+    case ('-ny')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, arg)
+        read(arg, *) ny
+      else
+        write(*,*) "Error: Missing value after ", trim(arg)
+        stop
+      endif
+      
+    case ('-nz')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, arg)
+        read(arg, *) nz
+      else
+        write(*,*) "Error: Missing value after ", trim(arg)
+        stop
+      endif
+      
+    case ('-p', '--perturbation')
+      if (i_arg + 1 <= n_args) then
+        i_arg = i_arg + 1
+        call get_command_argument(i_arg, arg)
+        read(arg, *) adjustable_parameter
+      else
+        write(*,*) "Error: Missing value after ", trim(arg)
+        stop
+      endif
+      
+    case default
+      write(*,*) "Unrecognized command-line option: ", trim(arg)
+      write(*,*) "Use --help for usage information"
+      stop
+  end select
+  
+  i_arg = i_arg + 1
+end do
+
+! Display help if requested
+if (show_help) then
+  write(*,*) "Usage: cube [options]"
+  write(*,*) "Options:"
+  write(*,*) "  -h, --help                  Show this help message"
+  write(*,*) "  -u, --ugrid FILENAME        Specify output UGRID filename (default: tetgrid.ugrid)"
+  write(*,*) "  -m, --mapbc FILENAME        Specify output MAPBC filename (default: tetgrid.mapbc)"
+  write(*,*) "  -tv, --tecplot-volume FILENAME    Specify Tecplot volume file (default: tetgrid_tecplot.dat)"
+  write(*,*) "  -tb, --tecplot-boundary FILENAME  Specify Tecplot boundary file (default: tetgrid_boundary_tecplot.dat)"
+  write(*,*) "  -vol, --write-volume-file   Enable writing of Tecplot volume file (default: disabled)"
+  write(*,*) "  -nx VALUE                   Number of points in x direction (default: 15)"
+  write(*,*) "  -ny VALUE                   Number of points in y direction (default: 15)"
+  write(*,*) "  -nz VALUE                   Number of points in z direction (default: 15)"
+  write(*,*) "  -p, --perturbation VALUE    Perturbation parameter (default: 1.2)"
+  stop
+endif
+
 !------------------------------------------------
-! Input parameters:
+! Input parameters are now set either from defaults or command line
 
-! (1)Number of points in each direction.
-
-     nx = 15
-     ny = 15
-     nz = 15
-
-! (2)A parameter for nodal perturbation (larger value for larger perturbation).
-
-     adjustable_parameter = 1.2_dp
+! Display configuration
+  write(*,*)
+  write(*,*) "--- File Configuration ---"
+  write(*,*) "UGRID output file:       ", trim(ugrid_filename)
+  write(*,*) "MAPBC output file:       ", trim(mapbc_filename)
+  write(*,*) "Tecplot boundary file:   ", trim(tecplot_bnd_filename)
+  if (write_tecplot_volume_file) then
+    write(*,*) "Tecplot volume file:    ", trim(tecplot_vol_filename)
+  else
+    write(*,*) "Tecplot volume file:    (not writing)"
+  endif
+  write(*,*) "-------------------------"
 
   write(*,*)
   write(*,*) "--- Input parameters ----------------------"
@@ -595,10 +737,10 @@
 ! Write a UGRID file
 !*******************************************************************************
      write(*,*)
-     write(*,*) " Writing a UGRID file (tetgrid.ugrid)...."
+     write(*,*) " Writing a UGRID file (", trim(ugrid_filename), ")...."
      write(*,*)
 
-  open(unit=2, file="tetgrid.ugrid", status="unknown", iostat=os)
+  open(unit=2, file=trim(ugrid_filename), status="unknown", iostat=os)
 
 !                    #nodes, #tri_faces, #quad_faces, #tetra, #pyr, #prz, #hex
    write(2,'(7i10)') nnodes,      ntria,           0,   ntet,    0,    0,    0
@@ -632,18 +774,18 @@
 ! Note: Set appropriate boundary condition numbers in this file.
 !*******************************************************************************
      write(*,*)
-     write(*,*) " Writing a BC file (tetgrid.mapbc)...."
+     write(*,*) " Writing a BC file (", trim(mapbc_filename), ")...."
      write(*,*)
 
- open(unit=3, file="tetgrid.mapbc", status="unknown", iostat=os)
+ open(unit=3, file=trim(mapbc_filename), status="unknown", iostat=os)
 
-  write(3,*) 6, "  !Number of boundary parts (boundary conditions)"
-  write(3,*) 1, 5000 !<--- These numbers must be chosen from available boundary
-  write(3,*) 2, 5000 !     condition numbers in a flow solver that read this
-  write(3,*) 3, 5000 !     file. Here, I just set 5000; I don't know what it is.
-  write(3,*) 4, 5000 !
-  write(3,*) 5, 5000 !
-  write(3,*) 6, 5000 !
+  write(3,*) '6, !Number of boundary parts (boundary conditions)'
+  write(3,*) '1, "freestream"'
+  write(3,*) '2, "freestream"'
+  write(3,*) '3, "freestream"'
+  write(3,*) '4, "freestream"'
+  write(3,*) '5, "freestream"'
+  write(3,*) '6, "freestream"'
 
  close(3)
 
@@ -653,10 +795,10 @@
   if (write_tecplot_volume_file) then
 
      write(*,*)
-     write(*,*) " Writing a Tecplot volume file (tetgrid_tecplot.dat)...."
+     write(*,*) " Writing a Tecplot volume file (", trim(tecplot_vol_filename), ")...."
      write(*,*)
 
- open(unit=1, file="tetgrid_tecplot.dat", status="unknown", iostat=os)
+ open(unit=1, file=trim(tecplot_vol_filename), status="unknown", iostat=os)
 
   write(1,*) 'title = "tet grid"'
   write(1,*) 'variables = "x","y","z"'
@@ -684,10 +826,10 @@
 !******************************************************************************
 
      write(*,*)
-     write(*,*) " Writing a Tecplot boundary file (tetgrid_boundary_tecplot.dat)...."
+     write(*,*) " Writing a Tecplot boundary file (", trim(tecplot_bnd_filename), ")...."
      write(*,*)
 
- open(unit=4, file="tetgrid_boundary_tecplot.dat", status="unknown", iostat=os)
+ open(unit=4, file=trim(tecplot_bnd_filename), status="unknown", iostat=os)
 
   write(4,*) 'title = "tet grid boundary"'
   write(4,*) 'variables = "x","y","z"'
@@ -707,12 +849,14 @@
 
   write(*,*) 
   write(*,*) " Grid files have been successfully generated:"
-  write(*,*) " --- tetgrid.ugrid (boundary faces are ordered pointing inward.)"
-  write(*,*) " --- tetgrid.mapbc"
+  write(*,*) " --- ", trim(ugrid_filename), " (boundary faces are ordered pointing inward.)"
+  write(*,*) " --- ", trim(mapbc_filename)
   write(*,*) 
   write(*,*) " Tecplot files have been successfully generated:"
-  write(*,*) " --- tetgrid_tecplot.dat"
-  write(*,*) " --- tetgrid_boundary_tecplot.dat"
+  if (write_tecplot_volume_file) then
+    write(*,*) " --- ", trim(tecplot_vol_filename)
+  endif
+  write(*,*) " --- ", trim(tecplot_bnd_filename)
 
   call compute_edge_based_data(xyz(:,1),xyz(:,2),xyz(:,3),nnodes,ntet,tet,ntria,tria)
 

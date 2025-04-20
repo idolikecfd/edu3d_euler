@@ -191,10 +191,6 @@
    left = 1
    rght = 2
 
-     ix = 1
-     iy = 2
-     iz = 3
-
 !------------------------------------------------------------------------------------
 !------------------------------------------------------------------------------------
 ! Preparation (1):
@@ -636,7 +632,7 @@
       do k = 1, nnghbrs(n1)
        if (nghbr(k0(n1)+k) == n2) i_edge =  edge_number(n1,k)
       end do
-      if (i_edge == 0) stop ! Error
+      if (i_edge == 0) stop 127 ! Error
 
      !Add the contribution to the directed area vector to 'i_edge'.
       n12(i_edge,:) = n12(i_edge,:) + directed_area_contribution
@@ -648,7 +644,7 @@
       do k = 1, nnghbrs(n2)
        if (nghbr(k0(n2)+k) == n1) i_edge =  edge_number(n2,k)
       end do
-      if (i_edge == 0) stop ! Error
+      if (i_edge == 0) stop 127 ! Error
 
      !Add the contribution to the directed area vector to 'i_edge' with minus sign.
       n12(i_edge,:) = n12(i_edge,:) - directed_area_contribution
@@ -974,7 +970,7 @@
     write(*,*)
     write(*,*) " These must be zero. Are these small enough? ERROR in construct_nceb_data? Stop..."
     write(*,*)
-    stop
+    stop 127
    endif
 
    deallocate(diff_dual)
@@ -1036,7 +1032,7 @@
     write(*,*)
     write(*,*) " These must be zero. Are these small enough? ERROR in construct_nceb_data? Stop..."
     write(*,*)
-    stop
+    stop 127
    endif
 
   deallocate(sum_directed_area_vector)
@@ -1068,7 +1064,7 @@
 
   if (n <= 0) then
    write(*,*) "my_alloc_int_ptr received non-positive dimension. Stop."
-   stop
+   stop 127
   endif
 
 ! If not allocated, allocate and return

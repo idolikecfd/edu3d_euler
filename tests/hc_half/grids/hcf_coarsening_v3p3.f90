@@ -1,5 +1,3 @@
-! gfortran -O2  hcf_coarsening_v3p3.f90
-! ifort    -O2  hcf_coarsening_v3p3.f90
 !*******************************************************************************
 !
 !     ----- Coarse-grid generation code for a HC-Family grid -----
@@ -13,13 +11,15 @@
 ! 
 ! Note: This is not a general-purpose code.
 !
-! This is Version 3.2 (July 29, 2017).
+! This is Version 3.3 (Enhanced CLI support).
 !
 ! v3.2: A bug fixed in the boundary tag for triangles of the symmetry plane.
+! v3.3: Added CLI support for parameter customization
 !------------------------------------------------------------------------------
 !
 !-------------
-!  Input: Parameters are set in the input file named as 'input_coarsen.nml'.
+!  Input: Parameters can be set in the input file named as 'input_coarsen.nml'
+!         or via command-line arguments.
 !         See 'Input parameter module' below.
 !
 !-------------
@@ -153,6 +153,7 @@
 !     'hcf_hc_v8p0.f90' or 'hcf_wing_4p0.f90'.]
 
   character(len=80) :: project = "wing_prism"
+  character(len=80) :: namelist_file = "input_coarsen.nml"
 
 
 !----------------------------
@@ -238,21 +239,32 @@
 !*****************************************************************************
 !* Read input_parameters in the input file: file name = namelist_file
 !*****************************************************************************
-  subroutine read_nml_input_parameters(namelist_file)
+  subroutine read_nml_input_parameters(namelist_file_str)
 
   implicit none
-  character(17), intent(in) :: namelist_file
-  integer :: os
+  character(len=*), intent(in) :: namelist_file_str
+  integer :: os, ios
 
   write(*,*) "**************************************************************"
   write(*,*) " List of namelist variables and their values"
   write(*,*)
 
-  open(unit=10,file=namelist_file,form='formatted',status='old',iostat=os)
-  read(unit=10,nml=input_parameters)
+  open(unit=10, file=namelist_file_str, form='formatted', status='old', iostat=os, action='read')
+  if (os /= 0) then
+    write(*,*) "Warning: Could not open namelist file: ", trim(namelist_file_str)
+    write(*,*) "Using default values"
+  else
+    read(unit=10, nml=input_parameters, iostat=ios)
+    if (ios /= 0) then
+      write(*,*) "Warning: Error reading namelist from file: ", trim(namelist_file_str)
+      write(*,*) "Using default values"
+    else
+      write(*,*) "Successfully read parameters from: ", trim(namelist_file_str)
+    end if
+    close(10)
+  end if
 
   write(*,nml=input_parameters)
-  close(10)
 
   end subroutine read_nml_input_parameters
 
@@ -276,11 +288,16 @@
 ! Main program begins here.
 !*******************************************************************************
 !*******************************************************************************
- program regular_hcfamily_coarsening
+program regular_hcfamily_coarsening
 
- use input_parameter_module
+use input_parameter_module
 
- implicit none
+implicit none
+
+! --- CLI argument parsing ---
+integer :: n_args, i_arg
+character(256) :: arg, output_dir
+logical :: show_help, output_dir_specified
 
 ! Parameters
   integer , parameter ::     dp = selected_real_kind(P=15)
@@ -472,6 +489,107 @@
   integer :: ngrids
   logical :: finish_coarse_levels
 
+show_help = .false.
+output_dir_specified = .false.
+output_dir = "./"  ! Default to current directory
+
+n_args = command_argument_count()
+i_arg = 1
+
+do while (i_arg <= n_args)
+  call get_command_argument(i_arg, arg)
+  select case (trim(arg))
+  case ('-h', '--help')
+    show_help = .true.
+  case ('-nml', '--namelist')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      namelist_file = trim(arg)
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('-o', '--output-prefix', '--project')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      project = trim(arg)
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+    endif
+  case ('-d', '--debug')
+    debug_mode = .true.
+  case ('--tet2prism')
+    tet2prism = .true.
+  case ('--formatted-ugrid')
+    ugrid_file_unformatted = .false.
+  case ('--formatted-k')
+    k_file_unformatted = .false.
+  case ('--formatted-rmp')
+    rmp_file_unformatted = .false.
+  case ('--formatted-prolong')
+    prolong_file_unformatted = .false.
+  case ('--tec-boundary')
+    generate_tec_file_b = .true.
+  case ('--tec-volume')
+    generate_tec_file_vol = .true.
+  case ('--no-partition')
+    generate_ntrl_partition_files = .false.
+  case ('--no-heff-report')
+    generate_heff_vol_report = .false.
+  case ('--outdir')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      output_dir = trim(arg)
+      output_dir_specified = .true.
+      ! Add trailing slash if not present
+      if (output_dir(len_trim(output_dir):len_trim(output_dir)) /= '/') then
+        output_dir = trim(output_dir) // '/'
+      end if
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case default
+    write(*,*) 'Unrecognized command-line option: ', trim(arg)
+    write(*,*) 'Use --help for usage information'
+    stop
+  end select
+  i_arg = i_arg + 1
+end do
+
+if (show_help) then
+  write(*,*) 'Usage: hcf_coarsening [options]'
+  write(*,*) 'Options:'
+  write(*,*) '  -h, --help                 Show this help message'
+  write(*,*) '  -nml, --namelist FILE      Specify input namelist file (default: input_coarsen.nml)'
+  write(*,*) '  -o, --output-prefix, --project PREFIX'
+  write(*,*) '                             Set output file prefix/project name'
+  write(*,*) '  -d, --debug                Enable debug mode'
+  write(*,*) '  --tet2prism                Convert tetrahedra to prisms on coarse grids'
+  write(*,*) '  --formatted-ugrid          Write ugrid files in formatted (text) mode'
+  write(*,*) '  --formatted-k              Write k files in formatted (text) mode'
+  write(*,*) '  --formatted-rmp            Write rmp files in formatted (text) mode'
+  write(*,*) '  --formatted-prolong        Write prolongation files in formatted (text) mode'
+  write(*,*) '  --tec-boundary             Generate Tecplot boundary files'
+  write(*,*) '  --tec-volume               Generate Tecplot volume files'
+  write(*,*) '  --no-partition             Skip generation of natural partition files'
+  write(*,*) '  --no-heff-report           Skip generation of volume/heff report'
+  write(*,*) '  --outdir DIR               Set output directory for all generated files'
+  stop
+endif
+
+if (output_dir_specified) then
+  ! Check if directory exists, create it if it doesn't
+  inquire(file=trim(output_dir)//'/.', exist=err)
+  if (.not. err) then
+    write(*,*) 'Creating output directory: ', trim(output_dir)
+    call system('mkdir -p '//trim(output_dir))
+  end if
+end if
+
    finish_coarse_levels = .false.
 
       nchex = 0
@@ -495,9 +613,9 @@
 ! Read the input parameters, defined in the file named as 'input_coarsen.nml'.
 !*******************************************************************************
 
-   write(*,*) "Reading the input file: input_coarsen.nml..... "
+   write(*,*) "Reading the input file: ", trim(namelist_file), "..... "
    write(*,*)
-   call read_nml_input_parameters('input_coarsen.nml')
+   call read_nml_input_parameters(namelist_file)
    write(*,*)
 
 !*******************************************************************************
@@ -541,104 +659,105 @@
  !------------------------------------------------------------
  ! Output coarse-grid file names.
 
-  filename_mapbc        = trim(project) // trim(".") // trim(cgrid_level_char) // '.mapbc'
-  filename_lines        = trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt'
-  filename_lines_all    = trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_all'
-  filename_lines_cc     = trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_cc'
-  filename_lines_cc_all = trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_cc_all'
+  ! Create file paths with output directory if specified
+  filename_mapbc        = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.mapbc'
+  filename_lines        = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt'
+  filename_lines_all    = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_all'
+  filename_lines_cc     = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_cc'
+  filename_lines_cc_all = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.lines_fmt_cc_all'
 
    if (ugrid_file_unformatted) then
 
      if ( big_endian_io(9999) ) then
-      filename_ugrid     = trim(project) // trim(".") // trim(cgrid_level_char) // '.b8.ugrid'
-      filename_p3d       = trim(project) // trim(".") // trim(cgrid_level_char) // '.ufmt'
+      filename_ugrid     = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.b8.ugrid'
+      filename_p3d       = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.ufmt'
      else
-      filename_ugrid     = trim(project) // trim(".") // trim(cgrid_level_char) // '.l8.ugrid'
-      filename_p3d       = trim(project) // trim(".") // trim(cgrid_level_char) // '.ufmt'
+      filename_ugrid     = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.l8.ugrid'
+      filename_p3d       = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.ufmt'
      end if
 
    else
-      filename_ugrid     = trim(project) // trim(".") // trim(cgrid_level_char) // '.ugrid'
-      filename_p3d       = trim(project) // trim(".") // trim(cgrid_level_char) // '.p3d'
+      filename_ugrid     = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.ugrid'
+      filename_p3d       = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.p3d'
    endif
 
-  filename_nmf      = trim(project) // trim(".") // trim(cgrid_level_char) // '.nmf'
-  filename_k        = trim(project) // trim(".") // trim(cgrid_level_char) // '.k'
-  filename_rmp      = trim(project) // trim(".") // trim(cgrid_level_char) // '.rmp'
+  filename_nmf      = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.nmf'
+  filename_k        = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.k'
+  filename_rmp      = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.rmp'
 
  !Nodal prolongation file has a finer-grid number since it is a pointer from f-node to c-nodes.
   filename_prolong_nc       = &
-         trim(project) // trim(".") // trim(cgrid_level_char_f) // '.prolong_nc'
+         trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char_f) // '.prolong_nc'
 
   filename_prolong_nc_seq   = &
-         trim(project) // trim(".") // trim(cgrid_level_char_f) // '.prolong_nc_seq'
+         trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char_f) // '.prolong_nc_seq'
 
  !Element prolongation file has a coarser-grid number since it is a pointer from a c-cell to f-cells.
   filename_prolong_cc       = &
-         trim(project) // trim(".") // trim(cgrid_level_char) // '.prolong_cc'
+         trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.prolong_cc'
 
-  filename_tecplot_b = trim(project) // trim(".") // trim(cgrid_level_char) // '.tec_bndary.dat'
-  filename_tecplot_v = trim(project) // trim(".") // trim(cgrid_level_char) // '.tec_volume.dat'
+  filename_tecplot_b = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.tec_bndary.dat'
+  filename_tecplot_v = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.tec_volume.dat'
 
-  filename_tecplot_b_ep = trim(project) // trim(".") // trim(cgrid_level_char_f) // '.tec_bndary_ep.dat'
+  filename_tecplot_b_ep = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char_f) // '.tec_bndary_ep.dat'
 
 
   filename02s = trim(filename02) // trim(".") // trim(cgrid_level_char) // '.tec.dat'
 
-  filename_c2f_cell_body = trim(project) // trim(".") // trim(cgrid_level_char) // '.surface.cc.c2f'
+  filename_c2f_cell_body = trim(output_dir) // trim(project) // trim(".") // trim(cgrid_level_char) // '.surface.cc.c2f'
 
  !------------------------------------------------------------
  ! Input finer-grid file names.
 
   if (icgrid==2) then
 
-   filename_lines_finer        = trim(project) // '.1.lines_fmt'
-   filename_lines_all_finer    = trim(project) // '.1.lines_fmt_all'
-   filename_lines_cc_finer     = trim(project) // '.1.lines_fmt_cc'
-   filename_lines_cc_all_finer = trim(project) // '.1.lines_fmt_cc_all'
+   filename_lines_finer        = trim(output_dir) // trim(project) // '.1.lines_fmt'
+   filename_lines_all_finer    = trim(output_dir) // trim(project) // '.1.lines_fmt_all'
+   filename_lines_cc_finer     = trim(output_dir) // trim(project) // '.1.lines_fmt_cc'
+   filename_lines_cc_all_finer = trim(output_dir) // trim(project) // '.1.lines_fmt_cc_all'
 
    if (ugrid_file_unformatted) then
      if ( big_endian_io(9999) ) then
-      filename_ugrid_finer = trim(project) // '.1.b8.ugrid'
+      filename_ugrid_finer = trim(output_dir) // trim(project) // '.1.b8.ugrid'
      else
-      filename_ugrid_finer = trim(project) // '.1.l8.ugrid'
+      filename_ugrid_finer = trim(output_dir) // trim(project) // '.1.l8.ugrid'
      endif
    else
-    filename_ugrid_finer = trim(project) // '.1.ugrid'
+    filename_ugrid_finer = trim(output_dir) // trim(project) // '.1.ugrid'
    endif
 
-   filename_k_finer     = trim(project) // '.1.k'
+   filename_k_finer     = trim(output_dir) // trim(project) // '.1.k'
 
-   filename_mapbc_finer = trim(project) // '.1.mapbc'
+   filename_mapbc_finer = trim(output_dir) // trim(project) // '.1.mapbc'
 
   else
 
    fgrid_level_int = icgrid-1 ! Finer grid level.
    write( fgrid_level_char, '(i0)' ) fgrid_level_int
-   filename_lines_finer        = trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt'
-   filename_lines_all_finer    = trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_all'
-   filename_lines_cc_finer     = trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_cc'
-   filename_lines_cc_all_finer = trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_cc_all'
+   filename_lines_finer        = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt'
+   filename_lines_all_finer    = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_all'
+   filename_lines_cc_finer     = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_cc'
+   filename_lines_cc_all_finer = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.lines_fmt_cc_all'
 
    if (ugrid_file_unformatted) then
 
      if ( big_endian_io(9999) ) then
-      filename_ugrid_finer     = trim(project) // trim(".") // trim(fgrid_level_char) // '.b8.ugrid'
+      filename_ugrid_finer     = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.b8.ugrid'
      else
-      filename_ugrid_finer     = trim(project) // trim(".") // trim(fgrid_level_char) // '.l8.ugrid'
+      filename_ugrid_finer     = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.l8.ugrid'
      end if
 
    else
-   filename_ugrid_finer     = trim(project) // trim(".") // trim(fgrid_level_char) // '.ugrid'
+   filename_ugrid_finer     = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.ugrid'
    endif
 
-   filename_k_finer         = trim(project) // trim(".") // trim(fgrid_level_char) // '.k'
+   filename_k_finer         = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.k'
 
-   filename_mapbc_finer     = trim(project) // trim(".") // trim(fgrid_level_char) // '.mapbc'
+   filename_mapbc_finer     = trim(output_dir) // trim(project) // trim(".") // trim(fgrid_level_char) // '.mapbc'
 
   endif
 
-  filename_heff_vol = trim(project) // trim("_heff_vol") // '.txt'
+  filename_heff_vol = trim(output_dir) // trim(project) // trim("_heff_vol") // '.txt'
 
 !*******************************************************************************
 ! Step 1. Read the .ugrid file
@@ -8504,11 +8623,12 @@
    write(*,*) "   --- (3)Farfield"
    write(*,*) "   --- (4)y-symmetry"
 
-   write(16,'(a57)') "4       !Number of boundary parts (boundary conditions)"
-   write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
-   write(16,'(a46)') "2, 5051 !Outflow with back pressure in FUN3D"
-   write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
-   write(16,'(a22)') "4, 6662 !Y-Symmetry in FUN3D"
+   ! Here we use boundaries types supported by EDU3D
+   write(16,*) '4                        ! Number of boundary parts (boundary conditions)'
+   write(16,*) '1, "slip_wall"           ! Viscous wall (4000 in FUN3D)'
+   write(16,*) '2, "outflow_subsonic_p0" ! Outflow with back pressure (5051 in FUN3D)'
+   write(16,*) '3, "freestream"          ! Characteristic-based inflow/outflow (5050 in FUN3D)'
+   write(16,*) '4, "slip_wall"           ! Y-Symmetry (6662 in FUN3D)'
 
   endif full_geometry_mapbc
 

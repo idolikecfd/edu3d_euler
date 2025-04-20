@@ -31,7 +31,7 @@ cp grids/tetgrid.ugrid  tetgrid.ugrid
 #
 #    - Executable 'edu3d_euler' is in the top level.
 #    - This will read input.nml in the current directory.
-#    - It reads the included file 'tetgrid.bcmap' for BC info.
+#    - It reads the included file 'tetgrid.mapbc' for BC info.
 #
 #    - Exact solution is free stream (constants).
 #    - Solver begins with perturbed solutions.

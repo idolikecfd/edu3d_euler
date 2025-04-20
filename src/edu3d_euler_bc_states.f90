@@ -114,7 +114,7 @@
 
      write(*,*) "Boundary condition=",trim(bc_state_type),"  not implemented."
      write(*,*) " --- Stop at get_right_state() in bc_states.f90..."
-     stop
+     stop 127
 
   end select
 !-----------------------------------------------------------------------

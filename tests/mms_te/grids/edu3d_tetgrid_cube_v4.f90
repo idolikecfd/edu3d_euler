@@ -27,7 +27,10 @@
 !* Katate Masatsuka, July 2019. http://www.cfdbooks.com
 !********************************************************************************
 !********************************************************************************
-!* Input : nx, ny, nz    ! Number of nodes in each coordinate direction
+!* Input : Command line options:
+!*         --x-size : Number of nodes in x direction (default=8)
+!*         --y-size : Number of nodes in y direction (default=8)
+!*         --z-size : Number of nodes in z direction (default=8)
 !*
 !* Output: tetgrid.ugrid ! Grid file (in .ugrid format)
 !*         tetgrid.mapbc ! Boundary condition file
@@ -46,9 +49,16 @@
 !*       flow solver.
 !*
 !********************************************************************************
- program tetgrid_cube
+program edu3d_tetgrid_cube
 
-  implicit none
+implicit none
+
+! --- CLI argument parsing ---
+integer :: n_args, i_arg
+character(256) :: arg
+logical :: show_help
+integer :: nx, ny, nz  ! Grid dimensions with default values
+
   integer , parameter :: dp = selected_real_kind(15) !Double precision
 
 ! Structured data
@@ -61,8 +71,6 @@
   real(dp), allocatable, dimension(:,:)   :: xyz       ! Coordinates
   integer , allocatable, dimension(:,:)   :: tet, tria ! Tet/tria connectivities
 
-! Number of nodes in each coordinate direction
-  integer :: nx, ny, nz
 ! Number of tetrahedra and triangles(boundary faces)
   integer :: ntet, ntria
 ! Number of nodes
@@ -74,11 +82,89 @@
 ! Local variables
   integer  :: i, j, k, os
 
-  character(80)                          :: filename_su2, filename_vtk
   integer                                :: nb
   character(80), dimension(:  ), pointer :: bnames  !Boundary names
   integer                                :: nprs, nhex, nquad
   integer , allocatable, dimension(:,:)  :: prs, hex, quad
+
+! Generate output file names based on grid dimensions
+  character(80) :: grid_suffix, base_name, ugrid_filename, mapbc_filename
+  character(80) :: tecplot_filename, tecplot_boundary_filename
+  character(80) :: filename_su2, filename_vtk
+
+show_help = .false.
+nx = 8  ! Default value
+ny = 8  ! Default value
+nz = 8  ! Default value
+
+n_args = command_argument_count()
+i_arg = 1
+
+do while (i_arg <= n_args)
+  call get_command_argument(i_arg, arg)
+  select case (trim(arg))
+  case ('-h', '--help')
+    show_help = .true.
+  case ('--x-size')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      read(arg, *) nx
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--y-size')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      read(arg, *) ny
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('--z-size')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      read(arg, *) nz
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('-o', '--output')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, arg)
+      ! Optionally override output file prefix (not implemented)
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case default
+    write(*,*) 'Unrecognized command-line option: ', trim(arg)
+    write(*,*) 'Use --help for usage information'
+    stop
+  end select
+  i_arg = i_arg + 1
+end do
+
+if (show_help) then
+  write(*,*) 'Usage: edu3d_tetgrid_cube [options]'
+  write(*,*) 'Options:'
+  write(*,*) '  -h, --help                  Show this help message'
+  write(*,*) '  --x-size SIZE               Number of nodes in x direction (default: 8)'
+  write(*,*) '  --y-size SIZE               Number of nodes in y direction (default: 8)'
+  write(*,*) '  --z-size SIZE               Number of nodes in z direction (default: 8)'
+  write(*,*) '  -o, --output PREFIX         Set output file prefix (not implemented)'
+  stop
+endif
+
+! Display the grid dimensions being used
+write(*,*) 'Creating tetrahedral grid with dimensions:'
+write(*,*) '  nx =', nx
+write(*,*) '  ny =', ny
+write(*,*) '  nz =', nz
 
 !*******************************************************************************
 ! Unit cube to be gridded.
@@ -97,18 +183,25 @@
 !   
 !
 !*******************************************************************************
-! Number of points in each direction.
-!  nx = 10
-!  ny = 10
-!  nz = 10
-
-  read(*,*) nx,ny,nz
 
 ! Allocate structured arrays
   allocate( x(nx,ny,nz), y(nx,ny,nz), z(nx,ny,nz) )
 
-! Grid spacing (uniform)
+  ! Create a dimension suffix in the format _XXxYYxZZ
+  write(grid_suffix, '(a,i2.2,a,i2.2,a,i2.2)') '_', nx, 'x', ny, 'x', nz
+  
+  ! Base name for files
+  base_name = "tetgrid"
+  
+  ! Create full filenames with grid dimensions
+  ugrid_filename = trim(base_name) // trim(grid_suffix) // ".ugrid"
+  mapbc_filename = trim(base_name) // trim(grid_suffix) // ".mapbc"
+  tecplot_filename = trim(base_name) // trim(grid_suffix) // "_tecplot.dat"
+  tecplot_boundary_filename = trim(base_name) // trim(grid_suffix) // "_boundary_tecplot.dat"
+  filename_su2 = trim(base_name) // trim(grid_suffix) // ".su2"
+  filename_vtk = trim(base_name) // trim(grid_suffix) // ".vtk"
 
+! Grid spacing (uniform)
   dx = 1.0_dp / real(nx-1)
   dy = 1.0_dp / real(ny-1)
   dz = 1.0_dp / real(nz-1)
@@ -404,7 +497,7 @@
 !*******************************************************************************
 ! Write a UGRID file
 !*******************************************************************************
-  open(unit=2, file="tetgrid.ugrid", status="unknown", iostat=os)
+  open(unit=2, file=ugrid_filename, status="unknown", iostat=os)
 
 !                    #nodes, #tri_faces, #quad_faces, #tetra, #pyr, #prz, #hex
    write(2,'(7i10)') nnodes,      ntria,           0,   ntet,    0,    0,    0
@@ -436,22 +529,23 @@
 ! Write a boundary condition map file: boundary marks
 ! Note: Set appropriate boundary condition numbers in this file.
 !*******************************************************************************
- open(unit=3, file="tetgrid.mapbc", status="unknown", iostat=os)
+ open(unit=3, file=mapbc_filename, status="unknown", iostat=os)
 
-  write(3,*) "Boundary Group", "   BC Index"
-  write(3,*) 1, 5000 !<--- These numbers must be chosen from available boundary
-  write(3,*) 2, 5000 !     condition numbers in a flow solver that read this
-  write(3,*) 3, 5000 !     file. Here, I just set 5000; I don't know what it is.
-  write(3,*) 4, 5000 !
-  write(3,*) 5, 5000 !
-  write(3,*) 6, 5000 !
+  !write(3,*) "Boundary Group", "   BC Index"
+  write(3,*) 6, "  !Number of boundary parts (boundary conditions)"
+  write(3,*) 1, "mms_dirichlet"
+  write(3,*) 2, "mms_dirichlet"
+  write(3,*) 3, "mms_dirichlet"
+  write(3,*) 4, "mms_dirichlet"
+  write(3,*) 5, "mms_dirichlet"
+  write(3,*) 6, "mms_dirichlet"
 
  close(3)
 
 !*******************************************************************************
 ! Write a Tecplot volume grid file for viweing. Just for viewing.
 !*******************************************************************************
- open(unit=1, file="tetgrid_tecplot.dat", status="unknown", iostat=os)
+ open(unit=1, file=tecplot_filename, status="unknown", iostat=os)
 
   write(1,*) 'title = "tet grid"'
   write(1,*) 'variables = "x","y","z"'
@@ -471,7 +565,7 @@
 ! Write a Tecplot boundary grid file for viewing. Just for viewing.
 !******************************************************************************
 
- open(unit=4, file="tetgrid_boundary_tecplot.dat", status="unknown", iostat=os)
+ open(unit=4, file=tecplot_boundary_filename, status="unknown", iostat=os)
 
   write(4,*) 'title = "tet grid boundary"'
   write(4,*) 'variables = "x","y","z"'
@@ -491,12 +585,12 @@
 
   write(*,*) 
   write(*,*) " Grid files have been successfully generated:"
-  write(*,*) " --- tetgrid.ugrid (boundary faces are ordered pointing inward.)"
-  write(*,*) " --- tetgrid.mapbc"
+  write(*,*) " --- ", trim(ugrid_filename), " (boundary faces are ordered pointing inward.)"
+  write(*,*) " --- ", trim(mapbc_filename)
   write(*,*) 
   write(*,*) " Tecplot files have been successfully generated:"
-  write(*,*) " --- tetgrid_tecplot.dat"
-  write(*,*) " --- tetgrid_boundary_tecplot.dat"
+  write(*,*) " --- ", trim(tecplot_filename)
+  write(*,*) " --- ", trim(tecplot_boundary_filename)
 
 !-------------------------------------------------------------------------------
 !
@@ -529,7 +623,6 @@
 !
 !-------------------------------------------------------------------------------
 
-  filename_vtk = "tetgrid.vtk"
   write(*,*)
   write(*,*) " Writing .vtk file... ", trim(filename_vtk)
   write(*,*)
@@ -543,7 +636,6 @@
 !
 !-------------------------------------------------------------------------------
 
-  filename_su2 = "tetgrid.su2"
   write(*,*)
   write(*,*) " Writing .su2 file... ", trim(filename_su2)
   write(*,*)
@@ -647,7 +739,7 @@
 
   ! Nodes
     do i = 1, nnodes
-     write(7,'(3es26.15,i20)')  xp(i), yp(i), zp(i)
+     write(7,'(3es26.15,i20)')  xp(i), yp(i), zp(i), k
       k = k + 1
     end do
 
@@ -793,7 +885,7 @@
 
    if (ntet > 0) then
     do i = 1, ntet
-     write(8,'(a,4i12)') '4', tet(i,1)-1, tet(i,2)-1, tet(i,3)-1
+     write(8,'(5i12)') 4, tet(i,1)-1, tet(i,2)-1, tet(i,3)-1, tet(i,4)-1
                          ! -1 since VTK reads the nodes as 0,1,2,3,..., not 1,2,3,..
     end do
    endif
@@ -803,7 +895,7 @@
 
    if (nprs > 0) then
     do i = 1, nprs
-     write(8,'(a,6i12)') '6',  prs(i,3)-1, prs(i,2)-1, prs(i,1)-1, &
+     write(8,'(7i12)') 6,  prs(i,3)-1, prs(i,2)-1, prs(i,1)-1, &
                                prs(i,6)-1, prs(i,5)-1, prs(i,4)-1
                          ! -1 since VTK reads the nodes as 0,1,2,3,..., not 1,2,3,..
     end do
@@ -814,7 +906,7 @@
 
    if (nhex > 0) then
     do i = 1, nhex
-     write(8,'(a,8i12)') '8',  hex(i,1)-1, hex(i,2)-1, hex(i,3)-1, hex(i,4)-1, &
+     write(8,'(9i12)') 8,  hex(i,1)-1, hex(i,2)-1, hex(i,3)-1, hex(i,4)-1, &
                                hex(i,5)-1, hex(i,6)-1, hex(i,7)-1, hex(i,8)-1
                          ! -1 since VTK reads the nodes as 0,1,2,3,..., not 1,2,3,..
     end do
@@ -860,4 +952,4 @@
 
 
 
- end program tetgrid_cube
+ end program edu3d_tetgrid_cube

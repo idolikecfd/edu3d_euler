@@ -27,5 +27,7 @@
      ugrid_unformatted = F
    generate_tec_file_b = T
    generate_tec_file_v = F
+    generate_soln_file = T
+        read_soln_file = F
 
 /

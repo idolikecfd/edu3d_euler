@@ -32,6 +32,7 @@
 !    -- Slip wall
 !
 !  - Input parameters controlled by namelist variables set in 'input.nml'.
+!    - Path to input file can be specified via command line (default: 'input.nml')
 !
 !
 !  - Perform a numerical truncation error analysis to verify the residual implementation.
@@ -120,6 +121,7 @@
 
  ! This main program contains the following subroutines:
  !
+ !  - parse_command_line          ! parse command line arguments
  !  - set_filenames                ! define file names
  !  - allocate_nceb_arrays         ! allocate arrays for the edge-based scheme
  !  - set_initial_solution         ! set up an initial solution
@@ -144,10 +146,24 @@
 
   implicit none
 
+  ! Add the interface to the C functions
+  interface
+    subroutine edu3d_euler_debug_hooks_init() bind(C, name="edu3d_euler_debug_hooks_init")
+    end subroutine edu3d_euler_debug_hooks_init
+    
+    subroutine edu3d_euler_debug_hooks_cleanup() bind(C, name="edu3d_euler_debug_hooks_cleanup")
+    end subroutine edu3d_euler_debug_hooks_cleanup
+  end interface
+
   integer , parameter :: p2 = selected_real_kind(p=15)
 
-  integer  :: i, os
+  integer  :: i, os, num_args
   real(p2) :: xp, yp, zp 
+  character(len=256) :: input_file
+  character(len=256) :: arg
+
+  ! Initialize debug hooks
+  call edu3d_euler_debug_hooks_init()
 
    write(*,*)
    write(*,*) "----------------------------------------------------------------"
@@ -158,12 +174,50 @@
    write(*,*)
 
 !*******************************************************************************
-! Read the input parameters, defined in the file named as 'input_coarsen.nml'.
+! Parse command-line arguments to get the input file path
 !*******************************************************************************
 
-   write(*,*) "Reading the input file: input.nml..... "
+   ! Set default input file name
+   input_file = "input.nml"
+   
+   ! Check if command-line arguments are provided
+   num_args = command_argument_count()
+   
+   if (num_args > 0) then
+     i = 1
+     do while (i <= num_args)
+       call get_command_argument(i, arg)
+       
+       if (arg == "-i" .or. arg == "--input") then
+         if (i < num_args) then
+           i = i + 1
+           call get_command_argument(i, input_file)
+           write(*,*) "Using input file: ", trim(input_file)
+         else
+           write(*,*) "Error: Missing argument for ", trim(arg)
+           call print_usage()
+           stop 127
+         endif
+       elseif (arg == "-h" .or. arg == "--help") then
+         call print_usage()
+         stop 127
+       else
+         write(*,*) "Unrecognized argument: ", trim(arg)
+         call print_usage()
+         stop 127
+       endif
+       
+       i = i + 1
+     end do
+   endif
+
+!*******************************************************************************
+! Read the input parameters from the specified input file
+!*******************************************************************************
+
+   write(*,*) "Reading the input file: ", trim(input_file), "..... "
    write(*,*)
-   call read_nml_input_parameters("input.nml")
+   call read_nml_input_parameters(trim(input_file))
    write(*,*)
 
 !-------------------------------------------------------------------------------
@@ -190,7 +244,7 @@
   call set_filenames
 
 !-------------------------------------------------------------------------------
-! 2. Read a grid file (.ugrid) and a bc file (.bcmap)
+! 2. Read a grid file (.ugrid) and a bc file (.mapbc)
 
   call read_grid
 
@@ -217,7 +271,7 @@
      write(*,*) " Reading a soln file: Error = ", abs(xp-x(i))+abs(yp-y(i))+abs(zp-z(i))
      write(*,*) " Read (x,y,z) = ", xp  ,yp  ,zp
      write(*,*) " Grid (x,y,z) = ", x(i),y(i),z(i)
-     stop
+     stop 127
     endif
    end do
    close(18)
@@ -264,9 +318,27 @@
    write(*,*) "----------------------------------------------------------------"
    write(*,*)
 
- stop
+  ! Cleanup debug hooks
+  call edu3d_euler_debug_hooks_cleanup()
 
  contains
+
+!********************************************************************************
+!
+! Print usage information
+!
+!********************************************************************************
+ subroutine print_usage()
+   
+   write(*,*)
+   write(*,*) "Usage: edu3d_euler [options]"
+   write(*,*)
+   write(*,*) "Options:"
+   write(*,*) "  -i, --input FILE   Path to input namelist file (default: input.nml)"
+   write(*,*) "  -h, --help         Display this help message"
+   write(*,*)
+   
+ end subroutine print_usage
  
 !********************************************************************************
 !
@@ -276,7 +348,7 @@
  subroutine set_filenames
 
   use input_parameter, only : project, ugrid_unformatted
-  use data_module    , only : filename_ugrid    , filename_bcmap
+  use data_module    , only : filename_ugrid    , filename_mapbc
   use data_module    , only : filename_tecplot_b, filename_tecplot_v
   use data_module    , only : filename_soln
 
@@ -304,7 +376,7 @@
  !-----------------------------------------------------------------------
  ! Input boundary condition file (ASCII file)
 
-      filename_bcmap     = trim(project) // '.bcmap'
+      filename_mapbc     = trim(project) // '.mapbc'
 
  !-----------------------------------------------------------------------
  ! Output: Tecplot boundary grid file (ASCII file)
@@ -378,7 +450,7 @@
 
    write(*,*) " Invalid input: solver_type = ", trim(solver_type)
    write(*,*) "   Available options: fwd_euler, tvdrk, implciit, jfnk. Stop..."
-   stop
+   stop 127
 
   endif
 
@@ -458,7 +530,7 @@
 !* 1. "datafile_grid_in": .ugrid file name. 
 !*
 !*
-!* 2. "datafile_bcmap_in" is assumed have been written in the following format:
+!* 2. "datafile_mapbc_in" is assumed have been written in the following format:
 !*
 !*   -----------------------------------------------------------------------
 !*    write(*,*) nb (# of boundaries)
@@ -532,7 +604,7 @@
 
  !Input file names
   use data_module    , only : filename_ugrid
-  use data_module    , only : filename_bcmap
+  use data_module    , only : filename_mapbc
 
  implicit none
 
@@ -723,11 +795,11 @@
 
    write(*,*)
    write(*,*) "---------------------------------------"
-   write(*,*) " Reading the boundary condition file....", trim(filename_bcmap)
+   write(*,*) " Reading the boundary condition file....", trim(filename_mapbc)
    write(*,*)
 
 ! Open the input file.
-  open(unit=2, file=filename_bcmap, status="unknown", iostat=os)
+  open(unit=2, file=filename_mapbc, status="unknown", iostat=os)
 
     read(2,*) nb
 
@@ -737,8 +809,8 @@
   endif
 
   if ( nb /= max( maxval(tria(:,4)), maxval(quad(:,5)) ) ) then
-   write(*,*) " Error in bcmap file..." 
-   stop
+   write(*,*) " Error in mapbc file..." 
+   stop 127
   endif
 
   allocate(bc_type(nb))
@@ -1007,7 +1079,7 @@
   use input_parameter, only : generate_tec_file_b,  generate_tec_file_v
   use input_parameter, only : project, ugrid_unformatted, mms_s_quadrature, kappa_s
 
-  use data_module    , only : filename_ugrid    , filename_bcmap
+  use data_module    , only : filename_ugrid    , filename_mapbc
   use data_module    , only : filename_tecplot_b, filename_tecplot_v
 
   use nceb_data      , only : construct_nceb_data
@@ -1047,16 +1119,16 @@
  !--------------------------------------------------------------------
  ! Boundary condition file: all must be "mms_dirichlet":
 
-   filename_bcmap = trim(project) // '.bcmap'
+   filename_mapbc = trim(project) // '.mapbc'
 
  !--------------------------------------------------------------------
  ! Define grid files to be read.
  
    ngrids = 3 !<- 3 grids will be used.
 
-   mms_grid_filename(1) = "./grids/tetgrid_08x08x08.ugrid" !1st grid
-   mms_grid_filename(2) = "./grids/tetgrid_16x16x16.ugrid" !2nd grid
-   mms_grid_filename(3) = "./grids/tetgrid_32x32x32.ugrid" !3rd grid
+   mms_grid_filename(1) = "./tetgrid_08x08x08" !1st grid
+   mms_grid_filename(2) = "./tetgrid_16x16x16" !2nd grid
+   mms_grid_filename(3) = "./tetgrid_32x32x32" !3rd grid
 
  !--------------------------------------------------------------------
  ! Loop over grids
@@ -1070,7 +1142,8 @@
 
 
    !Filename for igrid-th grid.
-    filename_ugrid = mms_grid_filename(igrid)
+    filename_ugrid = trim(mms_grid_filename(igrid)) // '.ugrid'
+    filename_mapbc = trim(mms_grid_filename(igrid)) // '.mapbc'
 
     write(*,*) " Grid ", igrid, trim(filename_ugrid)
 
@@ -1148,7 +1221,7 @@
      else
 
       write(*,*) " Invalid input: mms_s_quadrature = ", trim(mms_s_quadrature)
-      stop
+      stop 127
 
      endif
     !--------------------------------------------------------------------------------
@@ -1287,11 +1360,10 @@
 
    write(*,*) " Invalid input: solver_type = ", trim(solver_type)
    write(*,*) "   Available options: fwd_euler, tvdrk, implciit, jfnk. Stop..."
-   stop
+   stop 127
 
   endif
 
  end subroutine deallocate_all
 
  end program edu3d_euler
-

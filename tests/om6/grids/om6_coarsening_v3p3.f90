@@ -241,7 +241,7 @@
   subroutine read_nml_input_parameters(namelist_file)
 
   implicit none
-  character(17), intent(in) :: namelist_file
+  character(*), intent(in) :: namelist_file
   integer :: os
 
   write(*,*) "**************************************************************"
@@ -276,11 +276,17 @@
 ! Main program begins here.
 !*******************************************************************************
 !*******************************************************************************
- program regular_hcfamily_coarsening
+program om6_coarsening
 
- use input_parameter_module
+use input_parameter_module
 
- implicit none
+implicit none
+
+! --- CLI argument parsing ---
+integer :: n_args, i_arg
+character(256) :: arg, namelist_file
+character(80) :: output_prefix
+logical :: show_help, custom_prefix
 
 ! Parameters
   integer , parameter ::     dp = selected_real_kind(P=15)
@@ -472,6 +478,53 @@
   integer :: ngrids
   logical :: finish_coarse_levels
 
+show_help = .false.
+namelist_file = 'input_coarsen.nml'  ! Default namelist file
+custom_prefix = .false.
+
+n_args = command_argument_count()
+i_arg = 1
+
+do while (i_arg <= n_args)
+  call get_command_argument(i_arg, arg)
+  select case (trim(arg))
+  case ('-h', '--help')
+    show_help = .true.
+  case ('-nml', '--namelist')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, namelist_file)
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case ('-o', '--output')
+    if (i_arg + 1 <= n_args) then
+      i_arg = i_arg + 1
+      call get_command_argument(i_arg, output_prefix)
+      custom_prefix = .true.
+    else
+      write(*,*) 'Error: Missing value after ', trim(arg)
+      stop
+    endif
+  case default
+    write(*,*) 'Unrecognized command-line option: ', trim(arg)
+    write(*,*) 'Use --help for usage information'
+    stop
+  end select
+  i_arg = i_arg + 1
+end do
+
+if (show_help) then
+  write(*,*) 'Usage: om6_coarsening [options]'
+  write(*,*) 'Options:'
+  write(*,*) '  -h, --help                 Show this help message'
+  write(*,*) '  -nml, --namelist FILE      Set input namelist file'
+  write(*,*) '                             (default: input_coarsen.nml)'
+  write(*,*) '  -o, --output PREFIX        Set output file prefix'
+  stop
+endif
+
    finish_coarse_levels = .false.
 
       nchex = 0
@@ -492,13 +545,23 @@
    write(*,*)
 
 !*******************************************************************************
-! Read the input parameters, defined in the file named as 'input_coarsen.nml'.
+! Read the input parameters from the specified namelist file
 !*******************************************************************************
 
-   write(*,*) "Reading the input file: input_coarsen.nml..... "
+   write(*,*) "Reading the input file: ", trim(namelist_file), "..... "
    write(*,*)
-   call read_nml_input_parameters('input_coarsen.nml')
+   call read_nml_input_parameters(namelist_file)
    write(*,*)
+
+!*******************************************************************************
+! Override project name if custom prefix was specified
+!*******************************************************************************
+
+   if (custom_prefix) then
+     project = trim(output_prefix)
+     write(*,*) "Output file prefix overridden by command line to: ", trim(project)
+     write(*,*)
+   endif
 
 !*******************************************************************************
 !*******************************************************************************
@@ -8475,9 +8538,13 @@
     write(*,*) "   --- (3) Farfield."
 
     write(16,'(a57)') "3       !Number of boundary parts (boundary conditions)"
-    write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
-    write(16,'(a46)') "2, 5051 !Outflow with back pressure in FUN3D"
-    write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
+    !write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
+    !write(16,'(a46)') "2, 5051 !Outflow with back pressure in FUN3D"
+    !write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
+
+    write(16,*) '1,  "slip_wall"  !wing'
+    write(16,*) '2,  "slip_wall"  !symmetery plane (Is slip wall BC OK?)'
+    write(16,*) '3,  "freestream" !far field'
 
    elseif ( trim(project)=="wing_prism" .or. trim(project)=="wing_tetra"    .or. &
             trim(project)=="wing_mixed" .or. trim(project)=="wing_mixed_ph" .or. &
@@ -8489,9 +8556,13 @@
     write(*,*) "   --- (3) Farfield."
 
     write(16,'(a57)') "3       !Number of boundary parts (boundary conditions)"
-    write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
-    write(16,'(a21)') "2, 6662 !Y-Symmetry in FUN3D"
-    write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
+    !write(16,'(a32)') "1, 4000 !Viscous wall in FUN3D"
+    !write(16,'(a21)') "2, 6662 !Y-Symmetry in FUN3D"
+    !write(16,'(a55)') "3, 5050 !Characteristic-based inflow/outflow in FUN3D"
+
+    write(16,*) '1,  "slip_wall"  !wing'
+    write(16,*) '2,  "slip_wall"  !symmetery plane (Is slip wall BC OK?)'
+    write(16,*) '3,  "freestream" !far field'
 
    endif
 
@@ -13223,5 +13294,5 @@ endif
  end subroutine write_part_file
 
 
-end program regular_hcfamily_coarsening
+end program om6_coarsening
 

@@ -61,7 +61,7 @@ cp grids/wing_tetra.3.ugrid  om6_tet.ugrid
 #
 #    - Executable 'edu3d_euler' is in the top level.
 #    - This will read input.nml in the current directory.
-#    - It reads the included file 'hc_tet.bcmap' for BC info.
+#    - It reads the included file 'hc_tet.mapbc' for BC info.
 #############################################################
 
 ../executable_optimized/edu3d_euler

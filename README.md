@@ -8,81 +8,42 @@ This is an implicit unstructured-grid Euler solver (f90, serial, tetra only), wr
 For the grid format, see [edu2d3d_unstructured_grid_format](https://github.com/idolikecfd/edu2d3d_unstructured_grid_format).
 
 
-## Compile edu3d_euler
+## Building
 
 ```
 mkdir build
 cd build
 cmake ..
+make -j12
 ```
 
 
-## Run a truncation error analysis
+## Testing
 
-```bash
-# Create a testcase directory
-cp -r test_source/mms_te mms_te
+The test suite includes the following tests:
 
-# Go in there.
-cd mms_te
+* **mms_te**: truncation error analysis
+* **cube_freestream**: the cube-freestream case
+* **hc_half**: the hemisphere-cylinder (half-geometry) case
+* **om6**: the OM6 wing case
 
-# Run the test. See the output on screen.
-../executable_optimized/edu3d_euler
+Run all tests at once:
 
-# Return to the main directory.
-cd ..
+```
+ctest
 ```
 
-## Run the cube-freestream case
+Run all tests at once (verbose mode):
 
-```bash
-# Create a testcase directory
-cp -r test_source/cube_freestream testcase_cube_freestream
-
-# Go in there.
-cd testcase_cube_freestream
-
-# Run the test. See test_source/cube_freestream/readme.txt for details
-source readme.txt
-
-# Return to the main directory.
-cd ..
+```
+ctest -V
 ```
 
-## Run the hemisphere-cylinder (half-geometry) case
-
-```bash
-# Create a testcase directory
-cp -r test_source/hc_half testcase_hc_half
-
-# Go in there.
-cd testcase_hc_half
-
-# Run the test. See test_source/hc_half/readme.txt for details
-source readme.txt
-
-# Return to the main directory.
-cd ..
-```
-
-## Run the OM6 wing case
-
-```bash
-# Create a testcase directory
-cp -r test_source/om6 testcase_om6
-
-# Go in there.
-cd testcase_om6
-
-# Run the test. See test_source/om6/readme.txt for details
-source readme.txt
-
-# Return to the main directory.
-cd ..
-```
 
 ## Next Steps
 
 Now, go into each testcase directory and check the results:
+
 1. Plot the boundary grid and solutions.
 2. See fort.1000/2000 to see how the iteration converged.
+
