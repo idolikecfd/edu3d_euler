@@ -41,3 +41,9 @@ set(SOURCES
 # Add executable
 add_executable(edu3d_euler ${SOURCES})
 
+# Enable testing
+enable_testing()
+
+# Add test cases
+add_subdirectory(tests)
+
