@@ -4,6 +4,9 @@ add_executable(hcf_hc grids/hcf_hc_v8p0.f90 ../../src/debug_hooks.c)
 # Build the fine grid coarsener
 add_executable(hcf_coarsening grids/hcf_coarsening_v3p3.f90 ../../src/debug_hooks.c)
 
+# Tecplot visualization project file
+configure_file(view.lay ${CMAKE_CURRENT_BINARY_DIR}/view.lay COPYONLY)
+
 # Set up the test using the Python script from source directory with Python interpreter
 add_test(NAME hc_half
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/hc_half.py

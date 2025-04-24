@@ -1,5 +1,5 @@
 #!MC 1410
-$!VarSet |LFDSFN1| = '"hc_tet_boundary_tec.dat"'
+$!VarSet |LFDSFN1| = '"hc_tetra.1_boundary_tec.dat"'
 $!VarSet |LFDSVL1| = '"x" "y" "z" "rho" "u" "v" "w" "p"'
 $!SETSTYLEBASE FACTORY
 $!GLOBALPAPER 

@@ -4,6 +4,9 @@ add_executable(om6_wing grids/om6_wing_v4p0.f90 ../../src/debug_hooks.c)
 # Build the fine grid coarsener (level = 2, 3, 4)
 add_executable(om6_coarsening grids/om6_coarsening_v3p3.f90 ../../src/debug_hooks.c)
 
+# Tecplot visualization project file
+configure_file(view.lay ${CMAKE_CURRENT_BINARY_DIR}/view.lay COPYONLY)
+
 # Set up the test using the Python script from source directory with Python interpreter
 add_test(NAME om6
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/om6.py

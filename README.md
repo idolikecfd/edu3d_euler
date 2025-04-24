@@ -40,10 +40,16 @@ ctest -V
 ```
 
 
-## Next Steps
+## Results
 
-Now, go into each testcase directory and check the results:
-
-1. Plot the boundary grid and solutions.
+1. Navigate into the test output folder (e.g. `build/tests/om6`)
 2. See fort.1000/2000 to see how the iteration converged.
+
+
+## Visualization
+
+Tecplot visualizations are supported out of the box:
+
+1. Use any modern version of Tecplot, e.g. Tecplot 360 EX 2023 R1
+2. Open file -> Navigate into test output folder (.e.g. `build/tests/om6`) and open `view.lay`
 
